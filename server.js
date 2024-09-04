@@ -4,11 +4,13 @@ const axios = require('axios');
 const port = 2347;
 app.use(express.json());
 
+const useragent = require('useragent');
 
-
-// Middleware to log the IP address
+// Middleware to log the IP address and device type
 app.use((req, res, next) => {
     console.log('Client IP:', getClientIp(req));
+    const device = useragent.parse(req.headers['user-agent']);
+    console.log('Device Type:', device.os.toString()); // This will give you the OS type, which can help you infer the device type
     next();
 });
 
@@ -18,18 +20,24 @@ function getClientIp(req) {
     return forwarded ? forwarded.split(',').shift() : req.ip;
 }
 
-// Function to get location from IP address
+// Function to get location from IP address using IP-API
 async function getLocation(ip) {
     try {
         if (ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
             return 'Localhost'; // Fallback for localhost or private network IPs
         }
 
-        const response = await axios.get(`http://ip-api.com/json/${ip}`);
+        const response = await axios.get(`https://ipapi.co/${ip}/json/`);
         console.log('IP-API Response:', response.data);
 
         if (response.data && response.data.city) {
-            return response.data.city;
+            return {
+                city: response.data.city,
+                region: response.data.region,
+                country: response.data.country_name,
+                latitude: response.data.latitude,
+                longitude: response.data.longitude
+            };
         } else {
             console.error('Invalid response from IP-API:', response.data);
             return 'Unknown location';
@@ -74,14 +82,14 @@ app.get('/api/hello', async (req, res) => {
         return;
     }
 
-    const temperature = await getTemperature(location);
+    const temperature = await getTemperature(location.city);
 
     if (temperature === 'Unknown temperature') {
         // Handle weather data error
         res.status(404).json({
             client_ip: clientIp,
             location: location,
-            greeting: `Hello, ${visitorName}! Temperature data unavailable for ${location}.`
+            greeting: `Hello, ${visitorName}! Temperature data unavailable for ${location.city}.`
         });
         return;
     }
@@ -89,7 +97,7 @@ app.get('/api/hello', async (req, res) => {
     res.json({
         client_ip: clientIp,
         location: location,
-        greeting: `Hello, ${visitorName}! The temperature is ${temperature} degrees Celsius in ${location}`
+        greeting: `Hello, ${visitorName}! The temperature is ${temperature} degrees Celsius in ${location.city}, ${location.region}, ${location.country}.`
     });
 });
 
