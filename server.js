@@ -189,44 +189,67 @@ app.get('/api', async (req, res) => {
     const visitorName = req.query.visitor_name || 'Guest';
     const clientIp = getClientIp(req);
     const location = await getLocation(clientIp);
-
+  
     if (location === 'Unknown location' || location === 'Localhost') {
-        res.status(404).json({
-            client_ip: clientIp,
-            location: location,
-            greeting: `Hello, ${visitorName}! Unable to determine location.`
-        });
-        return;
-    }
-
-    // Reverse geocoding to get the precise address
-    const preciseLocation = await reverseGeocode(location.latitude, location.longitude);
-    const temperature = await getTemperature(location.city);
-
-    if (temperature === 'Unknown temperature') {
-        res.status(404).json({
-            client_ip: clientIp,
-            precise_location: preciseLocation,
-            location: location,
-            greeting: `Hello, ${visitorName}! Temperature data unavailable for ${location.city}.`
-        });
-        return;
-    }
-
-    const agent = useragent.parse(req.headers['user-agent']);
-    res.json({
+      res.status(404).json({
         client_ip: clientIp,
         location: location,
+        greeting: `Hello, ${visitorName}! Unable to determine location.`
+      });
+      return;
+    }
+  
+    // Request user's precise location using HTML5 Geolocation API
+    const preciseLocation = await getPreciseLocation();
+  
+    const temperature = await getTemperature(location.city);
+  
+    if (temperature === 'Unknown temperature') {
+      res.status(404).json({
+        client_ip: clientIp,
         precise_location: preciseLocation,
-        temperature: temperature,
-        device_details: {
-            os: agent.os.toString(),
-            browser: agent.toAgent(),
-            device: agent.device.toString()
-        },
-        greeting: `Hello, ${visitorName}! The temperature is ${temperature} degrees Celsius in ${location.city}, ${location.region}, ${location.country}. You are currently located at ${preciseLocation}.`
+        location: location,
+        greeting: `Hello, ${visitorName}! Temperature data unavailable for ${location.city}.`
+      });
+      return;
+    }
+  
+    const agent = useragent.parse(req.headers['user-agent']);
+    res.json({
+      client_ip: clientIp,
+      location: location,
+      precise_location: preciseLocation,
+      temperature: temperature,
+      device_details: {
+        os: agent.os.toString(),
+        browser: agent.toAgent(),
+        device: agent.device.toString()
+      },
+      greeting: `Hello, ${visitorName}! The temperature is ${temperature} degrees Celsius in ${location.city}, ${location.region}, ${location.country}. You are currently located at ${preciseLocation}.`
     });
-});
+  });
+  
+  // New function to get user's precise location using HTML5 Geolocation API
+  async function getPreciseLocation() {
+    return new Promise((resolve, reject) => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          position => {
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+            resolve(`Latitude: ${latitude}, Longitude: ${longitude}`);
+          },
+          error => {
+            console.error('Error getting precise location:', error.message);
+            resolve('Unknown precise location');
+          }
+        );
+      } else {
+        resolve('Geolocation API not supported');
+      }
+    });
+  }
+  
 
 app.listen(port, () => {
     console.log(`App is listening on port ${port}`);
