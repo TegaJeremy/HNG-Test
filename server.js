@@ -185,7 +185,7 @@ async function getTemperature(city) {
     }
 }
 
-app.get('/api/hello', async (req, res) => {
+app.get('/api', async (req, res) => {
     const visitorName = req.query.visitor_name || 'Guest';
     const clientIp = getClientIp(req);
     const location = await getLocation(clientIp);
